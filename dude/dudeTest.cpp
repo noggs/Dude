@@ -215,7 +215,7 @@ World world = { Vec2(100.0f, 100.0f), Vec2(50.0f, 50.0f) };
 #ifdef _DEBUG
 int numDudes = 100;
 #else
-int numDudes = 1000;
+int numDudes = 5000;
 #endif
 int numIterations = 60;
 float frameTime = 0.066f;
@@ -609,12 +609,12 @@ void dude_main()
 	printf("\n===============================================\n");
 	printf(" Average times for searching neighbours per dude:\n");
 	printf("    Original: %2.2f\n", origSearch );
-	printf("    Stream  : %2.2f\n", streamSearch );
-	printf("    SIMD    : %2.2f\n", simdSearch );
+	printf("    Stream  : %2.2f (x %2.2f)\n", streamSearch, origSearch/streamSearch );
+	printf("    SIMD    : %2.2f (x %2.2f)\n", simdSearch, origSearch/simdSearch );
 
 	printf("\n Average times for updating dude:\n");
 	printf("    Original: %2.2f\n", origUpdate );
-	printf("    Stream  : %2.2f\n", streamUpdate );
+	printf("    Stream  : %2.2f (x %2.2f)\n", streamUpdate, origUpdate/streamUpdate );
 
 }
 
