@@ -165,13 +165,13 @@ struct Dude_Original
 	{
 		float neighbourRangeSq = neighbourRange*neighbourRange;
 
-		Vec2 avg_pos(0.0f,0.0f);
-		int numNeighbours = 0;
+		Vec2 avg_pos(-dudes[thisDude]->position.x, -dudes[thisDude]->position.y);
+		int numNeighbours = 1;
 
 		// search for nearby dudes and head for the center
 		for(int i=0; i<numDudes; ++i)
 		{
-			if(i != thisDude)
+			//if(i != thisDude)
 			{
 				Vec2 diff = dudes[i]->position - position;
 				if( Vec::LengthSq(diff) < neighbourRangeSq )
@@ -224,7 +224,7 @@ float frameTime = 0.066f;
 //////////////////////////////////////////////////
 
 
-void TimeOnePass_Original()
+void TimeOnePass_Original(double& search, double& update)
 {
 	int i,j;
 
@@ -271,6 +271,9 @@ void TimeOnePass_Original()
 
 		step1 /= (numIterations * numDudes);
 		step2 /= (numIterations * numDudes);
+
+		search += step1;
+		update += step2;
 
 		printf( "Dude_Original:  %2.2fus %2.2fus %2.2fs\n", step1, step2, timer.End() );
 
@@ -366,7 +369,7 @@ struct Dude_Stream
 				}
 			}
 
-			if( numNeighbours!=0 )
+			if( numNeighbours!=1 )
 			{
 				dudes.targetPosValid[i] = true;
 				dudes.targetPos[i] = Vec::Scale( avg_pos, 1.0f/(float)numNeighbours );
@@ -454,7 +457,7 @@ struct Dude_Stream
 			// sum the num neighbours
 			float fNeighbours = numNeighbours.m128_f32[0] + numNeighbours.m128_f32[1] + numNeighbours.m128_f32[2] + numNeighbours.m128_f32[3];
 
-			if( fNeighbours > 0 )
+			if( fNeighbours > 1.0f )
 			{
 				__m128 totalNeighbours = _mm_set1_ps( fNeighbours );
 
@@ -539,7 +542,7 @@ struct Dude_Stream
 };
 
 
-void TimeOnePass_Stream()
+void TimeOnePass_Stream(double& search, double& simdSearch, double& update)
 {
 	int i;
 
@@ -573,22 +576,46 @@ void TimeOnePass_Stream()
 		step2 /= (numIterations * numDudes);
 		step3 /= (numIterations * numDudes);
 
-		printf( "Dude_Stream:  %2.2fus %2.2fus %2.2fus %2.2fs\n", step1, step2, step3, timer.End() );
+		search += step1;
+		simdSearch += step2;
+		update += step3;
+
+		printf( "Dude_Stream:  %2.2f %2.2f %2.2f %2.2f\n", step1, step2, step3, timer.End() );
 	}
 }
 
 
 void dude_main()
 {
+	int numPasses = 5;
 	int pass;
-	for( pass=0; pass < 5; pass++ )
+	double origSearch=0.0, origUpdate=0.0;
+	for( pass=0; pass < numPasses; pass++ )
 	{
-		TimeOnePass_Original();		
+		TimeOnePass_Original(origSearch, origUpdate);		
 	}
-	for( pass=0; pass < 5; pass++ )
+	double streamSearch=0.0, simdSearch=0.0, streamUpdate=0.0;
+	for( pass=0; pass < numPasses; pass++ )
 	{
-		TimeOnePass_Stream();
+		TimeOnePass_Stream(streamSearch, simdSearch, streamUpdate);
 	}
+
+	origSearch /= numPasses;
+	origUpdate /= numPasses;
+	streamSearch /= numPasses;
+	simdSearch /= numPasses;
+	streamUpdate /= numPasses;
+
+	printf("\n===============================================\n");
+	printf(" Average times for searching neighbours per dude:\n");
+	printf("    Original: %2.2f\n", origSearch );
+	printf("    Stream  : %2.2f\n", streamSearch );
+	printf("    SIMD    : %2.2f\n", simdSearch );
+
+	printf("\n Average times for updating dude:\n");
+	printf("    Original: %2.2f\n", origUpdate );
+	printf("    Stream  : %2.2f\n", streamUpdate );
+
 }
 
 
