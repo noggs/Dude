@@ -1,15 +1,16 @@
 
-#ifdef XBOX
-#include "stdafx.h"
+#ifdef _XBOX
+#include <xtl.h>
+#include <xboxmath.h>
 #else
 #include <windows.h>
+#include <xmmintrin.h>
 #endif
 
 #include <stdio.h>
 #include <vector>
 #include <math.h>
 
-#include <xmmintrin.h>
 
 
 struct Vec2
@@ -153,6 +154,7 @@ struct Dude_Original
 {
 	RandomSet rand;
 	Vec2 position;
+	char someData[192];
 	Vec2 targetPos;
 	bool targetPosValid;
 	float speed;
@@ -221,9 +223,9 @@ World world = { Vec2(100.0f, 100.0f), Vec2(50.0f, 50.0f) };
 #ifdef _DEBUG
 int numDudes = 1000;
 #else
-int numDudes = 3000;
+int numDudes = 1000;
 #endif
-int numIterations = 60;
+int numIterations = 600;
 float frameTime = 0.066f;
 
 //////////////////////////////////////////////////
@@ -413,6 +415,7 @@ struct Dude_Stream
 
 	static void SearchNeighboursSIMD( Dude_Stream& dudes )
 	{
+#ifndef _XBOX
 		__m128 neighbourRangeSq = _mm_set1_ps( neighbourRange*neighbourRange );
 
 		// search for nearby dudes and head for the center
@@ -490,6 +493,7 @@ struct Dude_Stream
 			else
 				dudes.targetPosValid[i] = false;
 		}
+#endif
 	}
 
 };
@@ -540,6 +544,9 @@ void TimeOnePass_Stream(double& search, double& simdSearch, double& update)
 
 void dude_main()
 {
+	printf("===============================================\n");
+	printf("numDudes: %d      numIterations: %d\n\n", numDudes, numIterations);
+
 	int numPasses = 5;
 	int pass;
 	double origSearch=0.0, origUpdate=0.0, contigSearch=0.0, contigUpdate=0.0;

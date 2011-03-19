@@ -1,4 +1,9 @@
+#ifdef _XBOX
+#include <xtl.h>
+#include <xboxmath.h>
+#else
 #include <windows.h>
+#endif
 
 void dude_main();
 
