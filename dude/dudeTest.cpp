@@ -77,6 +77,15 @@ int RandomSet::GetRangedInt(int from, int to)
 	return from + (int)(GetNormalisedFloat() * len);
 }
 
+float clamp(float min, float val, float max)
+{
+	if( val < min )
+		return min;
+	if( val > max )
+		return max;
+	return val;
+}
+
 template <typename T>
 struct RandomPoolAllocator
 {
@@ -156,7 +165,7 @@ struct Dude_Original
 	Vec2 position;
 	char someData[192];
 	Vec2 targetPos;
-	bool targetPosValid;
+	float targetPosValid;
 	float speed;
 	float heading;
 	float age;
@@ -167,6 +176,7 @@ struct Dude_Original
 		position.y = (rand.GetNormalisedFloat() * world.extents.y) - world.halfExtents.y;
 		heading = rand.GetNormalisedFloat() * 2.0f * 3.142f;
 		age = 0.0f;
+		speed = rand.GetNormalisedFloat() + 5.0f;
 	}
 
 	void SearchNeighbours(Dude_Original** dudes, int numDudes, int thisDude)
@@ -190,27 +200,32 @@ struct Dude_Original
 			}
 		}
 
-		targetPosValid = (numNeighbours!=0);
+		targetPosValid = (numNeighbours!=0) ? 1.0f : 0.0f;
 		targetPos = (numNeighbours!=0) ? Vec::Scale( avg_pos, 1.0f/(float)numNeighbours ) : Vec2();
 	}
 
 	void Update(float dt)
 	{
-		// turn towards targetPos
-		//Vec2 dir = Vec::GetNormal( targetPos - position );
+		float maxTurnPerSecond = 1.0f;
+		float maxTurn = maxTurnPerSecond * dt;
 
-		//Vec2 currentHeading( sin(heading), cos(heading) );
-
-		//float angleDiff = Vec::Dot( dir, currentHeading );
+		{
+			// turn towards targetPos
+			Vec2 dir = Vec::GetNormal( targetPos - position );
+			Vec2 currentHeading( sin(heading), cos(heading) );
+			float angleDiff = Vec::Dot( dir, currentHeading );
+			angleDiff = clamp( -maxTurn, angleDiff, maxTurn );
+			heading += angleDiff * targetPosValid;
+		}
 		
+		float targetPosInvalid = 1.0f - targetPosValid;
+		{
+			// turn slightly
+			float turnAmount = 0.1f * dt;
+			heading += targetPosInvalid * (( rand.GetNormalisedFloat() / turnAmount ) - (turnAmount/2.0f));
+		}
 
-		// turn slightly
-		float turnAmount = 0.1f * dt;
-		heading += ( rand.GetNormalisedFloat() / turnAmount ) - (turnAmount/2.0f);
 		Vec2 newHeading( sin(heading), cos(heading) );
-
-		//newHeading = dir;
-
 		position = position + Vec::Scale(newHeading, speed); 
 	}
 
@@ -225,7 +240,7 @@ int numDudes = 1000;
 #else
 int numDudes = 1000;
 #endif
-int numIterations = 600;
+int numIterations = 200;
 float frameTime = 0.066f;
 
 //////////////////////////////////////////////////
@@ -322,7 +337,7 @@ struct Dude_Stream
 	float* speed;
 	float* heading;
 	float* age;
-	bool* targetPosValid;
+	float* targetPosValid;
 	Vec2* targetPos;
 
 	int count;
@@ -335,7 +350,7 @@ struct Dude_Stream
 		speed = new float[ _count ];
 		heading = new float[ _count ];
 		age = new float[ _count ];
-		targetPosValid = new bool[ _count ];
+		targetPosValid = new float[ _count ];
 		targetPos = new Vec2[ _count ];
 
 		for( int i=0; i<_count; i++ )
@@ -345,7 +360,7 @@ struct Dude_Stream
 			heading[i] = _rand.GetNormalisedFloat() * 2.0f * 3.142f;
 			age[i] = 0.0f;
 			speed[i] = 0.5f + _rand.GetNormalisedFloat();
-			targetPosValid[i] = false;
+			targetPosValid[i] = 0.0f;
 		}
 	}
 
@@ -389,11 +404,11 @@ struct Dude_Stream
 
 			if( numNeighbours!=1 )
 			{
-				dudes.targetPosValid[i] = true;
+				dudes.targetPosValid[i] = 1.0f;
 				dudes.targetPos[i] = Vec::Scale( avg_pos, 1.0f/(float)numNeighbours );
 			}
 			else
-				dudes.targetPosValid[i] = false;
+				dudes.targetPosValid[i] = 0.0f;
 		}
 
 	}
@@ -403,10 +418,30 @@ struct Dude_Stream
 	{
 		for( int i=0; i<dudes.count; i++ )
 		{
-			// turn slightly
-			float turnAmount = 0.1f * dt;
-			dudes.heading[i] += ( rand.GetNormalisedFloat() / turnAmount ) - (turnAmount/2.0f);
-			Vec2 newHeading( sin(dudes.heading[i]), cos(dudes.heading[i]) );
+			float maxTurnPerSecond = 1.0f;
+			float maxTurn = maxTurnPerSecond * dt;
+
+			float heading = dudes.heading[i];
+
+			{
+				// turn towards targetPos
+				Vec2 dir = Vec::GetNormal( dudes.targetPos[i] - dudes.position[i]);
+				Vec2 currentHeading( sin(heading), cos(heading) );
+				float angleDiff = Vec::Dot( dir, currentHeading );
+				angleDiff = clamp( -maxTurn, angleDiff, maxTurn );
+				heading += angleDiff * dudes.targetPosValid[i];
+			}
+			
+			float targetPosInvalid = 1.0f - dudes.targetPosValid[i];
+			{
+				// turn slightly
+				float turnAmount = 0.1f * dt;
+				heading += targetPosInvalid * (( rand.GetNormalisedFloat() / turnAmount ) - (turnAmount/2.0f));
+			}
+
+			dudes.heading[i] = heading;
+
+			Vec2 newHeading( sin(heading), cos(heading) );
 			dudes.position[i] = dudes.position[i] + Vec::Scale(newHeading, dudes.speed[i]); 
 		}
 	}
@@ -488,10 +523,10 @@ struct Dude_Stream
 				dudes.targetPos[i].x = ( avg_posX.m128_f32[0] + avg_posX.m128_f32[1] + avg_posX.m128_f32[2] + avg_posX.m128_f32[3] );
 				dudes.targetPos[i].y = ( avg_posY.m128_f32[0] + avg_posY.m128_f32[1] + avg_posY.m128_f32[2] + avg_posY.m128_f32[3] );
 
-				dudes.targetPosValid[i] = true;
+				dudes.targetPosValid[i] = 1.0f;
 			}
 			else
-				dudes.targetPosValid[i] = false;
+				dudes.targetPosValid[i] = 0.0f;
 		}
 #endif
 	}
