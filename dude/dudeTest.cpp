@@ -2,6 +2,10 @@
 #ifdef _XBOX
 #include <xtl.h>
 #include <xboxmath.h>
+#include <tracerecording.h>
+
+#define PIX_TRACE
+
 #else
 #include <windows.h>
 #include <xmmintrin.h>
@@ -10,6 +14,7 @@
 #include <stdio.h>
 #include <vector>
 #include <math.h>
+
 
 
 
@@ -177,6 +182,7 @@ struct Dude_Original
 		heading = rand.GetNormalisedFloat() * 2.0f * 3.142f;
 		age = 0.0f;
 		speed = rand.GetNormalisedFloat() + 5.0f;
+		targetPos = Vec2(0.0f, 0.0f);
 	}
 
 	void SearchNeighbours(Dude_Original** dudes, int numDudes, int thisDude)
@@ -184,7 +190,7 @@ struct Dude_Original
 		float neighbourRangeSq = neighbourRange*neighbourRange;
 
 		Vec2 avg_pos(-dudes[thisDude]->position.x, -dudes[thisDude]->position.y);
-		int numNeighbours = 1;
+		float numNeighbours = 1.0f;
 
 		// search for nearby dudes and head for the center
 		for(int i=0; i<numDudes; ++i)
@@ -195,13 +201,20 @@ struct Dude_Original
 				if( Vec::LengthSq(diff) < neighbourRangeSq )
 				{
 					avg_pos += dudes[i]->position;
-					numNeighbours++;
+					numNeighbours += 1.0f;
 				}
 			}
 		}
 
-		targetPosValid = (numNeighbours!=0) ? 1.0f : 0.0f;
-		targetPos = (numNeighbours!=0) ? Vec::Scale( avg_pos, 1.0f/(float)numNeighbours ) : Vec2();
+		if( numNeighbours != 1.0f )
+		{
+			targetPosValid = 1.0f;
+			targetPos = Vec::Scale( avg_pos, 1.0f/numNeighbours );
+		}
+		else
+		{
+			targetPosValid = 0.0f;
+		}
 	}
 
 	void Update(float dt)
@@ -240,7 +253,12 @@ int numDudes = 1000;
 #else
 int numDudes = 1000;
 #endif
-int numIterations = 200;
+
+#ifdef PIX_TRACE
+int numIterations = 2;
+#else
+int numIterations = 100;
+#endif
 float frameTime = 0.066f;
 
 //////////////////////////////////////////////////
@@ -278,6 +296,10 @@ void TimeOnePass_Original(double& search, double& update, double& searchContig, 
 			dudesContigPtrs[i] = &dudesContig[i];
 		}
 
+#if defined(_XBOX) && defined(PIX_TRACE)
+		XTraceStartRecording( "e:\\dude_original.pix2" );
+#endif
+
 		double step1 = 0.0, step2 = 0.0, step1contig = 0.0, step2contig = 0.0;
 
 		for( i=0; i<numIterations; i++ )
@@ -296,6 +318,8 @@ void TimeOnePass_Original(double& search, double& update, double& searchContig, 
 				thisDude->Update( frameTime );
 				step2 += subTimer.End() * 10000000.0;
 
+#if !defined(PIX_TRACE)
+// don't confuse the trace
 				subTimer.Start();
 				thisDudeContig->SearchNeighbours( &dudesContigPtrs[0], dudesContigPtrs.size(), j );
 				step1contig += subTimer.End() * 10000000.0;
@@ -303,8 +327,13 @@ void TimeOnePass_Original(double& search, double& update, double& searchContig, 
 				subTimer.Start();
 				thisDudeContig->Update( frameTime );
 				step2contig += subTimer.End() * 10000000.0;
+#endif
 			}
 		}
+
+#if defined(_XBOX) && defined(PIX_TRACE)
+		XTraceStopRecording();
+#endif
 
 		step1 /= (numIterations * numDudes);
 		step2 /= (numIterations * numDudes);
@@ -332,13 +361,13 @@ void TimeOnePass_Original(double& search, double& update, double& searchContig, 
 
 struct Dude_Stream
 {
-	RandomSet* rand;
-	Vec2* position;
-	float* speed;
-	float* heading;
-	float* age;
-	float* targetPosValid;
-	Vec2* targetPos;
+	RandomSet* __restrict rand;
+	Vec2*__restrict  position;
+	float* __restrict speed;
+	float* __restrict heading;
+	float* __restrict age;
+	float* __restrict targetPosValid;
+	Vec2* __restrict targetPos;
 
 	int count;
 
@@ -361,6 +390,7 @@ struct Dude_Stream
 			age[i] = 0.0f;
 			speed[i] = 0.5f + _rand.GetNormalisedFloat();
 			targetPosValid[i] = 0.0f;
+			targetPos[i] = Vec2(0.0f, 0.0f);
 		}
 	}
 
@@ -387,25 +417,24 @@ struct Dude_Stream
 		{
 			const Vec2 pos = dudes.position[i];
 			Vec2 avg_pos(-pos.x, -pos.y);
-			int numNeighbours = 1;
+			float numNeighbours = 1.0f;
 
 			for(int j=0; j<dudes.count; ++j)
 			{
-				//const Vec2 otherPos = dudes.position[j];
 				Vec2 diff = dudes.position[j] - pos;
 				float distSq = Vec::LengthSq(diff);
 
 				if( distSq < neighbourRangeSq )
 				{
 					avg_pos += dudes.position[j];
-					numNeighbours++;
+					numNeighbours += 1.0f;
 				}
 			}
 
-			if( numNeighbours!=1 )
+			if( numNeighbours!=1.0f )
 			{
 				dudes.targetPosValid[i] = 1.0f;
-				dudes.targetPos[i] = Vec::Scale( avg_pos, 1.0f/(float)numNeighbours );
+				dudes.targetPos[i] = Vec::Scale( avg_pos, 1.0f/numNeighbours );
 			}
 			else
 				dudes.targetPosValid[i] = 0.0f;
@@ -543,6 +572,10 @@ void TimeOnePass_Stream(double& search, double& simdSearch, double& update)
 		Dude_Stream dudes;
 		dudes.Construct( rand, world, numDudes );
 
+#if defined(_XBOX) && defined(PIX_TRACE)
+		XTraceStartRecording( "e:\\dude_stream.pix2" );
+#endif
+
 		double step1 = 0.0, step2 = 0.0, step3 = 0.0;
 
 		Timer timer;
@@ -564,6 +597,10 @@ void TimeOnePass_Stream(double& search, double& simdSearch, double& update)
 			step3 += subTimer.End() * 10000000.0;
 		}
 
+#if defined(_XBOX) && defined(PIX_TRACE)
+		XTraceStopRecording();
+#endif
+
 		step1 /= (numIterations * numDudes);
 		step2 /= (numIterations * numDudes);
 		step3 /= (numIterations * numDudes);
@@ -582,7 +619,11 @@ void dude_main()
 	printf("===============================================\n");
 	printf("numDudes: %d      numIterations: %d\n\n", numDudes, numIterations);
 
-	int numPasses = 5;
+#ifdef PIX_TRACE
+	int numPasses = 1;
+#else
+	int numPasses = 3;
+#endif
 	int pass;
 	double origSearch=0.0, origUpdate=0.0, contigSearch=0.0, contigUpdate=0.0;
 	for( pass=0; pass < numPasses; pass++ )
@@ -619,4 +660,12 @@ void dude_main()
 
 
 
+int main(void**, int)
+{
+	dude_main();
+
+	for(;;) {Sleep(10);}
+
+	return 0;
+}
 

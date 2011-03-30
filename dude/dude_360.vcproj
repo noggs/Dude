@@ -342,7 +342,9 @@
 			<Tool
 				Name="VCCLX360CompilerTool"
 				Optimization="3"
+				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
+				WholeProgramOptimization="true"
 				PreprocessorDefinitions="NDEBUG;_XBOX"
 				StringPooling="true"
 				ExceptionHandling="0"
@@ -365,7 +367,7 @@
 			/>
 			<Tool
 				Name="VCX360LinkerTool"
-				AdditionalDependencies="xapilib.lib d3d9.lib d3dx9.lib xgraphics.lib xboxkrnl.lib xnet.lib xaudio2.lib xact3.lib x3daudio.lib xmcore.lib vcomp.lib"
+				AdditionalDependencies="xapilib.lib d3d9.lib d3dx9.lib xgraphics.lib xboxkrnl.lib xnet.lib xaudio2.lib xact3.lib x3daudio.lib xmcore.lib vcomp.lib tracerecording.lib xbdm.lib"
 				LinkIncremental="1"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile="$(OutDir)/$(ProjectName).pdb"
@@ -480,18 +482,6 @@
 			<File
 				RelativePath=".\dudeTest.cpp"
 				>
-			</File>
-			<File
-				RelativePath=".\main.cpp"
-				>
-				<FileConfiguration
-					Name="Release|Xbox 360"
-					>
-			<Tool
-				Name="VCCLX360CompilerTool"
-				FavorSizeOrSpeed="1"
-			/>
-				</FileConfiguration>
 			</File>
 		</Filter>
 		<Filter
